@@ -88,9 +88,9 @@ spec:
       serviceAccountName: default
       containers:
         - name: server
-          image: gcr.io/google-samples/microservices-demo/checkoutservice:v0.2.2
+          image: sirgrandmasterr/checkoutservice
           ports:
-          - containerPort: 5050
+          - containerPort: 5050 5060
           readinessProbe:
             exec:
               command: ["/bin/grpc_health_probe", "-addr=:5050"]
@@ -140,6 +140,9 @@ spec:
   - name: grpc
     port: 5050
     targetPort: 5050
+  - name: prometheus
+    port: 5060
+    targetPort: 5060
 ---
 apiVersion: apps/v1
 kind: Deployment

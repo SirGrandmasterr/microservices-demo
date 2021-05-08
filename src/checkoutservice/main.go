@@ -18,8 +18,11 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"time"
+
+	"flag"
 
 	"cloud.google.com/go/profiler"
 	"contrib.go.opencensus.io/exporter/jaeger"
@@ -35,6 +38,9 @@ import (
 
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/genproto"
 	money "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/money"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -44,6 +50,20 @@ const (
 )
 
 var log *logrus.Logger
+
+var (
+	// Create a metrics registry.
+	reg = prometheus.NewRegistry()
+
+	// Create some standard server metrics.
+	grpcMetrics = grpc_prometheus.NewServerMetrics()
+
+	// Create a customized counter metric.
+	customizedCounterMetric = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "demo_server_say_hello_method_handle_count",
+		Help: "Total number of RPCs handled on the server.",
+	}, []string{"name"})
+)
 
 func init() {
 	log = logrus.New()
@@ -57,6 +77,8 @@ func init() {
 		TimestampFormat: time.RFC3339Nano,
 	}
 	log.Out = os.Stdout
+	reg.MustRegister(grpcMetrics, customizedCounterMetric)
+	customizedCounterMetric.WithLabelValues("Test")
 }
 
 type checkoutService struct {
@@ -68,7 +90,17 @@ type checkoutService struct {
 	paymentSvcAddr        string
 }
 
+var addr = flag.String("listen-address", ":5060", "The address to listen on for HTTP requests.")
+
 func main() {
+
+	go func() {
+		log.Info("STARTING PROMETHEUS SERVER")
+		flag.Parse()
+		http.Handle("/metrics", promhttp.Handler())
+		log.Fatal(http.ListenAndServe(*addr, nil))
+	}()
+
 	if os.Getenv("DISABLE_TRACING") == "" {
 		log.Info("Tracing enabled.")
 		go initTracing()
@@ -102,11 +134,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	var srv *grpc.Server
 	if os.Getenv("DISABLE_STATS") == "" {
 		log.Info("Stats enabled.")
-		srv = grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
+		srv = grpc.NewServer(
+			grpc.StatsHandler(&ocgrpc.ServerHandler{}),
+			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		)
 	} else {
 		log.Info("Stats disabled.")
 		srv = grpc.NewServer()
@@ -116,6 +151,7 @@ func main() {
 	log.Infof("starting to listen on tcp: %q", lis.Addr().String())
 	err = srv.Serve(lis)
 	log.Fatal(err)
+
 }
 
 func initJaegerTracing() {

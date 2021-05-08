@@ -80,3 +80,7 @@ spec:
   - name: grpc
     port: 5050
     targetPort: 5050
+  - name: prometheus
+    port: 5060
+    targetPort: 5060
+    

@@ -29,5 +29,13 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.6 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
 COPY --from=builder /checkoutservice /checkoutservice
-EXPOSE 5050
+
+ENV PORT="5050"
+ENV PRODUCT_CATALOG_SERVICE_ADDR="productcatalogservice:3550"
+ENV SHIPPING_SERVICE_ADDR="shippingservice:50051"
+ENV PAYMENT_SERVICE_ADDR="paymentservice:50051"
+ENV EMAIL_SERVICE_ADDR="emailservice:5000"
+ENV CURRENCY_SERVICE_ADDR="currencyservice:7000"
+ENV CART_SERVICE_ADDR="cartservice:7070"
+EXPOSE 5050 5060
 ENTRYPOINT ["/checkoutservice"]
